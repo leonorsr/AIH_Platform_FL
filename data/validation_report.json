@@ -1,0 +1,17 @@
+{
+  "status": "complete",
+  "records": 981,
+  "validated_arrays": 4865610,
+  "all_arrays_checked": true,
+  "manifest_consistency_checked": true,
+  "elapsed_seconds": 414,
+  "output_directory": "datasets/icentia11_prepared",
+  "client_partition": "one_client_per_patient",
+  "patient_client_bijection_checked": true,
+  "split_client_counts": {
+    "train": 16,
+    "dev": 2,
+    "test": 2
+  },
+  "array_validation_note": "Signals unchanged; prior complete array validation remains applicable. All manifest rows checked during patient reassignment."
+}

@@ -1,0 +1,89 @@
+{
+  "source_fs_hz": 250,
+  "target_fs_hz": 200,
+  "beat_length_samples": 500,
+  "patient_split": {
+    "train": 16,
+    "dev": 2,
+    "test": 2
+  },
+  "seed": 2024,
+  "annotation_tolerance_samples": 20,
+  "annotation_matching": "minimum-error candidate first, one-to-one; deterministic ties",
+  "limit_records_per_patient": null,
+  "normalization": "per-beat min-max",
+  "window_seconds": 1,
+  "interpolation": "linear, 200 to 500 representation points; not native 200-Hz samples",
+  "filters": {
+    "highpass_hz": 0.5,
+    "order": 5,
+    "notch_hz": 60,
+    "notch_q": 35
+  },
+  "patient_ids": {
+    "train": [
+      "p00290",
+      "p01083",
+      "p01950",
+      "p03281",
+      "p03900",
+      "p04014",
+      "p05133",
+      "p07028",
+      "p07070",
+      "p07179",
+      "p07743",
+      "p07929",
+      "p08689",
+      "p09354",
+      "p09440",
+      "p09951"
+    ],
+    "dev": [
+      "p00877",
+      "p09134"
+    ],
+    "test": [
+      "p01965",
+      "p04071"
+    ]
+  },
+  "quality_policy": "retain all finite SQI grades; reject invalid or constant windows",
+  "Q_policy": "retain as unclassifiable beat, not automatically an arrhythmia",
+  "versions": {
+    "numpy": "2.0.2",
+    "scipy": "1.13.1",
+    "pandas": "2.3.3",
+    "wfdb": "4.3.1",
+    "neurokit2": "0.2.11"
+  },
+  "sqi_reference": "https://doi.org/10.3389/fphys.2018.00727",
+  "sqi_deviation": "NeuroKit neurokit/pantompkins1985 detector pair and 1-s beat windows; published detector pair and longer evaluation windows differ.",
+  "client_partition": "one_client_per_patient",
+  "train_clients": 16,
+  "dev_clients": 2,
+  "test_clients": 2,
+  "patient_to_client": {
+    "p00290": "client_00",
+    "p01083": "client_01",
+    "p01950": "client_02",
+    "p03281": "client_03",
+    "p03900": "client_04",
+    "p04014": "client_05",
+    "p05133": "client_06",
+    "p07028": "client_07",
+    "p07070": "client_08",
+    "p07179": "client_09",
+    "p07743": "client_10",
+    "p07929": "client_11",
+    "p08689": "client_12",
+    "p09354": "client_13",
+    "p09440": "client_14",
+    "p09951": "client_15",
+    "p00877": "client_16",
+    "p09134": "client_17",
+    "p01965": "client_18",
+    "p04071": "client_19"
+  },
+  "evaluation_policy": "dev/test clients are held out; only train split participates in federated training"
+}

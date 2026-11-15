@@ -1,0 +1,15 @@
+.ipynb_checkpoints/
+.DS_Store
+bin/
+obj/
+artifacts/
+
+# Dados ECG locais e índices volumosos
+/data/train/
+/data/dev/
+/data/test/
+/data/raw/
+/data/clients/
+/data/evaluation_clients/
+/data/reprepared/
+/data/prepared-*/
