@@ -1,0 +1,17 @@
+{
+  "name": "pilot-balanced",
+  "models": ["mlp", "cnn-small", "cnn-deep", "resnet1d"],
+  "seeds": [2024],
+  "samplingSeed": 2024,
+  "epochs": 5,
+  "batchSize": 64,
+  "learningRate": 0.001,
+  "patience": 3,
+  "trainSamplesPerClient": 512,
+  "devSamplesPerClient": 1024,
+  "cacheSignalsUpTo": 25000,
+  "threads": 4,
+  "classWeighting": "inverse-frequency",
+  "selectionMetric": "sv-pr-auc",
+  "rareThreshold": 0.5
+}

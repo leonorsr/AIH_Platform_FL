@@ -1,0 +1,30 @@
+{
+  "name": "smoke-mobilenetv1",
+  "purpose": "smoke-test",
+  "models": [
+    "mobilenetv1-1d-025"
+  ],
+  "seeds": [
+    2024,
+    2025,
+    2026
+  ],
+  "samplingSeed": 2024,
+  "samplingStrategy": "stratified-per-client-class",
+  "epochs": 3,
+  "batchSize": 128,
+  "learningRate": 0.001,
+  "patience": 3,
+  "trainSamplesPerClient": 512,
+  "devSamplesPerClient": 1024,
+  "cacheSignalsUpTo": 25000,
+  "threads": 4,
+  "useDiskCache": false,
+  "device": "cpu",
+  "classWeighting": "inverse-frequency",
+  "selectionMetric": "sv-pr-auc",
+  "rareThreshold": 0.5,
+  "modelDevices": {
+    "mobilenetv1-1d-025": "mps"
+  }
+}

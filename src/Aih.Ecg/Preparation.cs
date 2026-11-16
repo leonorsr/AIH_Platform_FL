@@ -9,9 +9,9 @@ public static class Preparation
     public static PreparationResult Run(string dataRoot,string rawRoot,string output,int? limitRecordsPerPatient=null,string? sampleRecord=null)
     {
         var data=new Dataset(dataRoot);output=Path.GetFullPath(output);rawRoot=Path.GetFullPath(rawRoot);
-        if(limitRecordsPerPatient is <=0)throw new ArgumentException("O limite deve ser positivo.");
-        if(output==data.Root||new[]{"train","dev","test","clients","evaluation_clients","raw"}.Any(p=>output==Path.Combine(data.Root,p)))throw new ArgumentException("Escolhe uma pasta nova para a saída.");
-        if(Directory.Exists(output)&&Directory.EnumerateFileSystemEntries(output).Any())throw new IOException("A saída deve estar vazia.");
+        if(limitRecordsPerPatient is <=0)throw new ArgumentException("The limit must be positive.");
+        if(output==data.Root||new[]{"train","dev","test","clients","evaluation_clients","raw"}.Any(p=>output==Path.Combine(data.Root,p)))throw new ArgumentException("Choose a new output directory.");
+        if(Directory.Exists(output)&&Directory.EnumerateFileSystemEntries(output).Any())throw new IOException("The output directory must be empty.");
         var jobs=new List<(Client Client,string Prefix)>();
         foreach(var c in data.Clients)
         {
@@ -19,10 +19,10 @@ public static class Preparation
             string dir=Path.Combine(rawRoot,c.Patient[..3],c.Patient);
             var records=sampleRecord!=null?new[]{Path.GetFullPath(sampleRecord)}:Directory.GetFiles(dir,"*.hea").Order(StringComparer.Ordinal).Select(p=>p[..^4]);
             if(limitRecordsPerPatient.HasValue)records=records.Take(limitRecordsPerPatient.Value);
-            var prefixes=records.ToArray();if(prefixes.Length==0)throw new FileNotFoundException($"Sem registos para {c.Patient}");
+            var prefixes=records.ToArray();if(prefixes.Length==0)throw new FileNotFoundException($"No recordings found for {c.Patient}");
             foreach(string prefix in prefixes){foreach(string ext in new[]{".hea",".dat",".atr"})if(!File.Exists(prefix+ext))throw new FileNotFoundException(prefix+ext);jobs.Add((c,prefix));}
         }
-        if(jobs.Count==0)throw new InvalidDataException("Nenhum registo corresponde aos pacientes configurados.");
+        if(jobs.Count==0)throw new InvalidDataException("No recording matches the configured patients.");
         Directory.CreateDirectory(output);Directory.CreateDirectory(Path.Combine(output,"clients"));Directory.CreateDirectory(Path.Combine(output,"evaluation_clients"));
         var stats=new List<RecordStatistics>();var clientCounts=new Dictionary<(string Client,string Label),long>();
         using var manifest=new StreamWriter(Path.Combine(output,"manifest.csv"));manifest.WriteLine(Header);
@@ -35,12 +35,12 @@ public static class Preparation
             foreach(string split in new[]{"dev","test"}){var w=new StreamWriter(Path.Combine(output,split+"_evaluation_manifest.csv"));w.WriteLine(Header);splitWriters.Add(split,w);}
             foreach(var (client,prefix) in jobs)
             {
-                Console.WriteLine($"Preparar {client.Id}: {Path.GetFileName(prefix)}");
+                Console.WriteLine($"Preparing {client.Id}: {Path.GetFileName(prefix)}");
                 var st=Process(prefix,client,output,line=>{manifest.WriteLine(line);writers[client.Id].WriteLine(line);if(splitWriters.TryGetValue(client.Split,out var sw))sw.WriteLine(line);});
                 stats.Add(st);total+=st.Accepted;
                 foreach(string label in Dataset.Labels)clientCounts[(client.Id,label)]=clientCounts.GetValueOrDefault((client.Id,label))+st.AcceptedLabels[label];
             }
-            foreach(var c in data.Clients.Where(c=>writers.ContainsKey(c.Id)))if(Dataset.Labels.Sum(l=>clientCounts.GetValueOrDefault((c.Id,l)))==0)throw new InvalidDataException($"Cliente sem batimentos: {c.Id}");
+            foreach(var c in data.Clients.Where(c=>writers.ContainsKey(c.Id)))if(Dataset.Labels.Sum(l=>clientCounts.GetValueOrDefault((c.Id,l)))==0)throw new InvalidDataException($"Client has no usable beats: {c.Id}");
         } finally {foreach(var w in writers.Values)w.Dispose();foreach(var w in splitWriters.Values)w.Dispose();}
         using(var w=new StreamWriter(Path.Combine(output,"record_processing_stats.csv")))
         {

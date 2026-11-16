@@ -4,7 +4,7 @@ bin/
 obj/
 artifacts/
 
-# Dados ECG locais e índices volumosos
+# Local ECG signals and large index files
 /data/train/
 /data/dev/
 /data/test/
@@ -13,3 +13,5 @@ artifacts/
 /data/evaluation_clients/
 /data/reprepared/
 /data/prepared-*/
+/model tests/results/
+/model tests/cache/
