@@ -1,0 +1,38 @@
+{
+  "name": "smoke-additional",
+  "purpose": "smoke-test",
+  "models": [
+    "mlp-simple",
+    "mlp-complex",
+    "mlp-very-complex",
+    "mobilenetv1-1d-050",
+    "mobilenetv1-1d-075",
+    "mobilenetv1-1d-100"
+  ],
+  "seeds": [
+    2024,
+    2025,
+    2026
+  ],
+  "samplingSeed": 2024,
+  "samplingStrategy": "stratified-per-client-class",
+  "epochs": 3,
+  "batchSize": 128,
+  "learningRate": 0.001,
+  "patience": 3,
+  "trainSamplesPerClient": 512,
+  "devSamplesPerClient": 1024,
+  "cacheSignalsUpTo": 25000,
+  "threads": 4,
+  "useDiskCache": false,
+  "device": "cpu",
+  "classWeighting": "inverse-frequency",
+  "selectionMetric": "sv-pr-auc",
+  "rareThreshold": 0.5,
+  "modelDevices": {
+    "mobilenetv1-1d-025": "mps",
+    "mobilenetv1-1d-050": "mps",
+    "mobilenetv1-1d-075": "mps",
+    "mobilenetv1-1d-100": "mps"
+  }
+}

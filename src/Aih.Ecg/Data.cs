@@ -18,7 +18,7 @@ public static class Csv
             else if (c == ',' && !quoted) { result.Add(field.ToString()); field.Clear(); }
             else field.Append(c);
         }
-        if (quoted) throw new InvalidDataException("Campo CSV com aspas incompletas.");
+        if (quoted) throw new InvalidDataException("Unterminated quoted CSV field.");
         result.Add(field.ToString()); return result.ToArray();
     }
     public static IEnumerable<Dictionary<string,string>> Read(string path)
@@ -26,7 +26,7 @@ public static class Csv
         using var reader = new StreamReader(path); var header = Parse(reader.ReadLine() ?? throw new InvalidDataException(path));
         while (reader.ReadLine() is { } line)
         {
-            var fields = Parse(line); if (fields.Length != header.Length) throw new InvalidDataException($"CSV inválido: {path}");
+            var fields = Parse(line); if (fields.Length != header.Length) throw new InvalidDataException($"Invalid CSV: {path}");
             yield return header.Select((h,i) => (h, fields[i])).ToDictionary(x => x.h, x => x.Item2);
         }
     }
@@ -52,42 +52,42 @@ public sealed class Dataset
             { string patient = p.GetString()!; clients.Add(new(mapping.GetProperty(patient).GetString()!, patient, split)); }
         if (clients.Count != 20 || clients.Select(c=>c.Patient).Distinct().Count()!=20 || clients.Select(c=>c.Id).Distinct().Count()!=20
             || clients.Count(c=>c.Split=="train")!=16 || clients.Count(c=>c.Split=="dev")!=2 || clients.Count(c=>c.Split=="test")!=2)
-            throw new InvalidDataException("Esperados 20 clientes únicos, com divisão 16/2/2.");
+            throw new InvalidDataException("Expected 20 unique clients with a 16/2/2 split.");
         Clients = clients.OrderBy(c=>c.Id, StringComparer.Ordinal).ToArray();
     }
     public static string FindRoot()
     {
         for (var p = new DirectoryInfo(Environment.CurrentDirectory); p != null; p=p.Parent)
             if (File.Exists(Path.Combine(p.FullName,"data","preparation_config.json"))) return p.FullName;
-        throw new DirectoryNotFoundException("Executa a partir do repositório.");
+        throw new DirectoryNotFoundException("Run from the repository directory.");
     }
     public string Index(Client c) => Path.Combine(Root, c.Split=="train"?"clients":"evaluation_clients",c.Id+".csv");
     public string SignalPath(string relative)
     {
         string p=Path.GetFullPath(Path.Combine(Root,relative));
-        if (!p.StartsWith(Root+Path.DirectorySeparatorChar,StringComparison.Ordinal)) throw new InvalidDataException("Caminho fora do dataset.");
+        if (!p.StartsWith(Root+Path.DirectorySeparatorChar,StringComparison.Ordinal)) throw new InvalidDataException("Path is outside the dataset directory.");
         return p;
     }
 }
 
-// NPY v1/v2 float32 little-endian e escalares Unicode, dentro de arquivos NPZ.
+// NPY v1/v2 little-endian float32 arrays and Unicode scalars inside NPZ archives.
 public static class Npz
 {
     public static float[] ReadSignal(string path)
     {
-        using var zip=ZipFile.OpenRead(path); var entry=zip.GetEntry("signal.npy") ?? throw new InvalidDataException("Falta signal.npy");
+        using var zip=ZipFile.OpenRead(path); var entry=zip.GetEntry("signal.npy") ?? throw new InvalidDataException("Missing signal.npy");
         using var s=entry.Open(); using var r=new BinaryReader(s);
-        if (!r.ReadBytes(6).SequenceEqual(new byte[]{147,78,85,77,80,89})) throw new InvalidDataException("Magic NPY inválido.");
-        byte major=r.ReadByte(); r.ReadByte(); int len=major==1?r.ReadUInt16():major is 2 or 3?checked((int)r.ReadUInt32()):throw new InvalidDataException("Versão NPY.");
+        if (!r.ReadBytes(6).SequenceEqual(new byte[]{147,78,85,77,80,89})) throw new InvalidDataException("Invalid NPY magic bytes.");
+        byte major=r.ReadByte(); r.ReadByte(); int len=major==1?r.ReadUInt16():major is 2 or 3?checked((int)r.ReadUInt32()):throw new InvalidDataException("Unsupported NPY version.");
         string h=Encoding.UTF8.GetString(r.ReadBytes(len));
         if (!Regex.IsMatch(h,@"['""]descr['""]\s*:\s*['""]<f4['""]") || !Regex.IsMatch(h,@"['""]fortran_order['""]\s*:\s*False"))
-            throw new InvalidDataException("Esperado float32 little-endian em ordem C.");
+            throw new InvalidDataException("Expected little-endian float32 data in C order.");
         var shape=Regex.Match(h,@"['""]shape['""]\s*:\s*\(\s*(\d+)\s*,\s*\)");
-        if (!shape.Success) throw new InvalidDataException("Esperado vetor NPY de uma dimensão.");
-        int n=int.Parse(shape.Groups[1].Value); if(n!=500) throw new InvalidDataException($"Esperados 500 pontos; obtidos {n}.");
+        if (!shape.Success) throw new InvalidDataException("Expected a one-dimensional NPY array.");
+        int n=int.Parse(shape.Groups[1].Value); if(n!=500) throw new InvalidDataException($"Expected 500 points; received {n}.");
         var x=new float[n]; for(int i=0;i<n;i++) x[i]=r.ReadSingle();
-        if(s.ReadByte()!=-1) throw new InvalidDataException("Dados NPY excedentes.");
-        if(x.Any(v=>!float.IsFinite(v)||v<0||v>1)) throw new InvalidDataException("Sinal não finito ou fora de [0,1].");
+        if(s.ReadByte()!=-1) throw new InvalidDataException("Unexpected trailing NPY data.");
+        if(x.Any(v=>!float.IsFinite(v)||v<0||v>1)) throw new InvalidDataException("Signal contains non-finite values or values outside [0,1].");
         return x;
     }
     static void Array(ZipArchive z,string name,string dtype,string shape,Action<BinaryWriter> body)

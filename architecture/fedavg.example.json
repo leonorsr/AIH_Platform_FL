@@ -1,0 +1,50 @@
+{
+  "status": "proposed-not-executable",
+  "experimentName": "icentia11k-fedavg-baseline",
+  "implementation": "C#/.NET",
+  "mode": "local-sequential-simulation",
+  "dataRoot": "data",
+  "partitionConfig": "data/preparation_config.json",
+  "outputRoot": "artifacts/fl",
+  "seed": 2024,
+  "model": {
+    "family": "cnn1d-proposed",
+    "inputChannels": 1,
+    "inputLength": 500,
+    "labels": ["N", "S", "V", "Q"],
+    "batchNormalization": false,
+    "architectureFinalized": false
+  },
+  "federation": {
+    "strategy": "FedAvg",
+    "rounds": 20,
+    "trainClients": ["client_00", "client_01", "client_02", "client_03", "client_04", "client_05", "client_06", "client_07", "client_08", "client_09", "client_10", "client_11", "client_12", "client_13", "client_14", "client_15"],
+    "clientsPerRound": 16,
+    "minimumValidUpdates": 16,
+    "aggregationWeight": "distinct-local-training-examples",
+    "onClientFailure": "abort-round"
+  },
+  "localTraining": {
+    "epochs": 1,
+    "batchSize": 64,
+    "shuffle": true,
+    "dropLastBatch": false,
+    "optimizer": "SGD",
+    "learningRate": 0.01,
+    "momentum": 0.0,
+    "resetOptimizerEachRound": true,
+    "loss": "cross-entropy",
+    "classWeights": null,
+    "device": "cpu"
+  },
+  "evaluation": {
+    "devClients": ["client_16", "client_17"],
+    "testClients": ["client_18", "client_19"],
+    "devEveryRounds": 1,
+    "checkpointMetric": "pooled-dev-macro-f1-four-classes",
+    "zeroDivision": 0,
+    "checkpointTieBreak": "earliest-round",
+    "testPolicy": "once-after-checkpoint-selection"
+  },
+  "hyperparametersValidated": false
+}

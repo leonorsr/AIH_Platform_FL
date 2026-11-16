@@ -6,23 +6,23 @@ public sealed record Annotation(int Sample,string Label);
 public sealed record Recording(double[] Signal,int SamplingRate,IReadOnlyList<Annotation> Annotations);
 public static class Wfdb
 {
-    // Leitor específico para Icentia11k: um canal, WFDB formato 16, 250 Hz.
+    // Icentia11k reader: one channel, WFDB format 16, 250 Hz.
     public static Recording Read(string prefix)
     {
         var lines=File.ReadAllLines(prefix+".hea").Where(l=>!string.IsNullOrWhiteSpace(l)&&!l.StartsWith('#')).ToArray();
         string[] first=Regex.Split(lines[0].Trim(),@"\s+"); string[] ch=Regex.Split(lines[1].Trim(),@"\s+");
-        if(first[1]!="1"||first[2]!="250"||ch[1]!="16") throw new NotSupportedException("Esperado ECG de um canal, 250 Hz, WFDB 16.");
+        if(first[1]!="1"||first[2]!="250"||ch[1]!="16") throw new NotSupportedException("Expected a single-channel ECG at 250 Hz in WFDB format 16.");
         int count=int.Parse(first[3],CultureInfo.InvariantCulture);
         var gainMatch=Regex.Match(ch[2],@"^(?<gain>[\d.eE+\-]+)(?:\((?<base>[+\-]?\d+)\))?/");
-        if(!gainMatch.Success) throw new InvalidDataException("Ganho WFDB inválido.");
+        if(!gainMatch.Success) throw new InvalidDataException("Invalid WFDB gain.");
         double gain=double.Parse(gainMatch.Groups["gain"].Value,CultureInfo.InvariantCulture);
         int baseline=gainMatch.Groups["base"].Success?int.Parse(gainMatch.Groups["base"].Value):int.Parse(ch[4]);
-        if(!double.IsFinite(gain)||gain<=0)throw new InvalidDataException("Ganho WFDB inválido.");
+        if(!double.IsFinite(gain)||gain<=0)throw new InvalidDataException("Invalid WFDB gain.");
         string dat=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(prefix)!,ch[0]));
-        if(Path.GetDirectoryName(dat)!=Path.GetDirectoryName(Path.GetFullPath(prefix)))throw new InvalidDataException("DAT fora da pasta do registo.");
+        if(Path.GetDirectoryName(dat)!=Path.GetDirectoryName(Path.GetFullPath(prefix)))throw new InvalidDataException("DAT file is outside the recording directory.");
         using var r=new BinaryReader(File.OpenRead(dat));
-        if(r.BaseStream.Length!=2L*count)throw new InvalidDataException("Comprimento DAT diferente do header.");
-        var x=new double[count];for(int i=0;i<count;i++){short value=r.ReadInt16();if(value==short.MinValue)throw new InvalidDataException("Amostra WFDB em falta.");x[i]=(value-baseline)/gain;}
+        if(r.BaseStream.Length!=2L*count)throw new InvalidDataException("DAT length does not match the header.");
+        var x=new double[count];for(int i=0;i<count;i++){short value=r.ReadInt16();if(value==short.MinValue)throw new InvalidDataException("Missing WFDB sample.");x[i]=(value-baseline)/gain;}
         return new(x,250,ReadAnnotations(prefix+".atr"));
     }
     public static List<Annotation> ReadAnnotations(string path)

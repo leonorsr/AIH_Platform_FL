@@ -3,7 +3,7 @@ namespace Aih.Ecg;
 public sealed record Quality(double Q,double P,double K,double Bas,double Score,string Grade);
 public static class SignalProcessing
 {
-    // FIR Kaiser, 4/5, zero-padding e compensação do atraso de grupo (50 amostras à frequência elevada).
+    // Kaiser FIR, 4/5 resampling, zero padding and group-delay compensation (50 samples at the upsampled rate).
     public static double[] Resample(double[] x)
     {
         int n=(x.Length*4+4)/5;var y=new double[n];var h=Coefficients.ResampleFir;
@@ -17,7 +17,7 @@ public static class SignalProcessing
     public static double[] Filter(double[] x)=>FiltFilt(FiltFilt(x,Coefficients.HighB,Coefficients.HighA,Coefficients.HighZi),Coefficients.NotchB,Coefficients.NotchA,Coefficients.NotchZi);
     public static double[] FiltFilt(double[] x,double[] b,double[] a,double[] zi)
     {
-        int edge=3*Math.Max(a.Length,b.Length);if(x.Length<=edge)throw new ArgumentException("Sinal curto para filtfilt.");
+        int edge=3*Math.Max(a.Length,b.Length);if(x.Length<=edge)throw new ArgumentException("Signal is too short for forward-backward filtering.");
         var padded=new double[x.Length+2*edge];
         for(int i=0;i<edge;i++){padded[i]=2*x[0]-x[edge-i];padded[edge+x.Length+i]=2*x[^1]-x[x.Length-2-i];}
         System.Array.Copy(x,0,padded,edge,x.Length);
@@ -133,7 +133,7 @@ public static class SignalProcessing
             if(!matches.ContainsKey(c.Peak)&&used.Add(c.Ann))matches.Add(c.Peak,(ann[c.Ann].A,ann[c.Ann].Sample));
         return matches;
     }
-    // Pré-calcul du periodograma de Hann para janelas fixas de 200 amostras.
+    // Precompute the Hann periodogram basis for fixed 200-sample windows.
     static readonly double[,] Cos=new double[101,200],Sin=new double[101,200];
     static SignalProcessing()
     {
@@ -141,7 +141,7 @@ public static class SignalProcessing
     }
     public static Quality Sqi(double[] window,int[] primary,int[] secondary)
     {
-        if(window.Length!=200||window.Any(v=>!double.IsFinite(v)))throw new InvalidDataException("Janela SQI inválida.");
+        if(window.Length!=200||window.Any(v=>!double.IsFinite(v)))throw new InvalidDataException("Invalid SQI window.");
         int i=0,j=0,matches=0;
         while(i<primary.Length&&j<secondary.Length){int d=primary[i]-secondary[j];if(Math.Abs(d)<=10){matches++;i++;j++;}else if(d<0)i++;else j++;}
         double q=primary.Length+secondary.Length==0?0:200.0*matches/(primary.Length+secondary.Length);
@@ -150,7 +150,7 @@ public static class SignalProcessing
         double Band(int a,int b){double s=0;for(int k=a;k<b;k++)s+=(power[k]+power[k+1])/2;return s;}
         double denom=Band(5,40),total=Band(0,40),p=denom>double.Epsilon?Band(5,15)/denom:0,bas=total>double.Epsilon?100*(1-Band(0,1)/total):0;
         double mean=window.Average(),m2=0,m4=0;foreach(double v in window){double d=v-mean;m2+=d*d;m4+=d*d*d*d;}
-        double kurt=window.Length*m4/(m2*m2);if(!double.IsFinite(kurt))throw new InvalidDataException("Curtose não finita.");
+        double kurt=window.Length*m4/(m2*m2);if(!double.IsFinite(kurt))throw new InvalidDataException("Non-finite kurtosis.");
         return Fuzzy(q,p,kurt,bas);
     }
     public static Quality Fuzzy(double q,double p,double k,double bas)
@@ -165,7 +165,7 @@ public static class SignalProcessing
         double bu=bas<=85?1:1/(1+Sq((bas-85)/5)),bb=1/(1+Sq((bas-92)/2.5));
         double e=Math.Min(1,.4*qe+.4*pe+.1*(k>5?1:0)+.1*be),b=Math.Min(1,.4*qb+.4*pb+.1*bb),u=Math.Min(1,.4*qu+.4*pu+.1*(k>5?0:1)+.1*bu);
         double score=(e*e+2*b*b+3*u*u)/(e*e+b*b+u*u);
-        if(!double.IsFinite(score))throw new InvalidDataException("SQI não finito.");
+        if(!double.IsFinite(score))throw new InvalidDataException("Non-finite SQI.");
         return new(q,p,k,bas,score,score<=1.5?"Excellent":score<2.4?"Barely acceptable":"Unacceptable");
     }
 }

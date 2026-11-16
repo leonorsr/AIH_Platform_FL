@@ -1,6 +1,6 @@
 namespace Aih.Ecg;
 
-// Coeficientes fixos: 250 → 200 Hz; Butterworth 5ª ordem 0,5 Hz; notch 60 Hz Q=35.
+// Fixed coefficients: 250 → 200 Hz; fifth-order Butterworth at 0.5 Hz; 60 Hz notch with Q=35.
 internal static class Coefficients
 {
     internal static readonly double[] HighB = [0.97490393460365998, -4.8745196730183, 9.7490393460366001, -9.7490393460366001, 4.8745196730183, -0.97490393460365998];
