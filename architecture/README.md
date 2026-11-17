@@ -1,6 +1,8 @@
 # FL architecture — FedAvg in C#
 
-Proposal for implementing federated training in .NET, starting with local simulation. ECG preparation and analysis already exist in `src/Aih.Ecg/`; FL coordination, the federated model, and its training integration are planned components.
+The executable local simulation is now in [`implementation/`](../implementation/README.md): MobileNetV1 1D alpha 1.00, 16 clients, 100 local epochs per round, 15 rounds, and three seeds, with checkpoint selection by development S/V PR-AUC. Its configuration and documented BatchNorm policy supersede the initial baseline choices below. No experiment has been trained by adding this implementation.
+
+The remainder of this document records the initial design proposal. ECG preparation and analysis live in `src/Aih.Ecg/`; distributed transport remains planned.
 
 ## Components
 
