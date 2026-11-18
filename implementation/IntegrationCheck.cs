@@ -58,14 +58,14 @@ public static class IntegrationCheck
         string config = Path.Combine(directory, "integration-config.json"), run = Path.Combine(directory, "results");
         Experiment.Json(config, c);
         Experiment.Json(Path.Combine(directory, "verification.json"), new { Status = "running", SyntheticOnly = true, StartedUtc = DateTime.UtcNow });
-        Console.WriteLine("INTEGRATION TEST: synthetic ECG only; 3 of 16 clients per round; 3 seeds; 2 rounds; 1 local epoch; 2 one-epoch fine-tuning candidates per client.");
+        Console.WriteLine("INTEGRATION TEST: synthetic ECG only; 3 fixed clients drawn from 16; 3 seeds; 2 rounds; 1 local epoch; 2 one-epoch fine-tuning candidates per client.");
         try
         {
             Experiment.Run(fixture, config, run, false, token);
             Program.Tune(fixture, run, token);
             Experiment.EvaluateTest(fixture, run, token);
             var manifests = ModelReports.Read<ClientInfo[]>(Path.Combine(run, "clients.json"));
-            Require(manifests.Where(x => x.Split == "train").Sum(x => x.Count) == 64 && manifests.All(x => x.SourceCount == 8), "bounded training/source sample counts");
+            Require(manifests.Where(x => x.Split == "train").Sum(x => x.Count) == 4 * c.ClientsPerRound && manifests.All(x => x.SourceCount == 8), "bounded training/source sample counts");
             int localModels = 0, searches = 0;
             foreach (int seed in c.Seeds)
             {

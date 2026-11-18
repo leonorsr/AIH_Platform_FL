@@ -1,0 +1,34 @@
+{
+  "Name": "icentia11k-real-check",
+  "Model": "mobilenetv1-1d-100",
+  "Seeds": [
+    2024,
+    2025,
+    2026
+  ],
+  "GlobalRounds": 1,
+  "LocalEpochs": 1,
+  "BatchSize": 128,
+  "LearningRate": 0.001,
+  "Threads": 4,
+  "ClassWeighting": "inverse-frequency",
+  "RareThreshold": 0.5,
+  "UseDiskCache": true,
+  "FineTuning": {
+    "LearningRates": [
+      0.0001
+    ],
+    "TrainableLayers": [
+      "head",
+      "all"
+    ],
+    "MaxEpochs": 1
+  },
+  "OptimizedCpuConvolutions": true,
+  "TrainSamplesPerClient": null,
+  "DevSamplesPerClient": null,
+  "SamplingSeed": 2024,
+  "ClientsPerRound": 3,
+  "ClientSelectionMode": "fixed",
+  "ClientSelectionSeed": 2024
+}

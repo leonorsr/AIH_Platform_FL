@@ -8,14 +8,21 @@ public sealed record LocalSource(string Client, int Round, string DevClient, str
 
 public static class RoundSchedule
 {
+    public static string[] FixedCohort(IReadOnlyList<Client> clients, Configuration c)
+    {
+        var ids = clients.Where(x => x.Split == "train").Select(x => x.Id).Order(StringComparer.Ordinal).ToArray();
+        new Random(c.ClientSelectionSeed).Shuffle(ids);
+        return ids.Take(c.ClientsPerRound).Order(StringComparer.Ordinal).ToArray();
+    }
     public static RoundSelection Choose(IReadOnlyList<Client> clients, Configuration c, int seed, int round)
     {
         var train = clients.Where(x => x.Split == "train").Select(x => x.Id).Order(StringComparer.Ordinal).ToArray();
         var dev = clients.Where(x => x.Split == "dev").Select(x => x.Id).Order(StringComparer.Ordinal).ToArray();
         var test = clients.Where(x => x.Split == "test").Select(x => x.Id).Order(StringComparer.Ordinal).ToArray();
         var random = new Random(LocalTraining.Seed(seed, round, 7919));
-        random.Shuffle(train);
-        return new(seed, round, train.Take(c.ClientsPerRound).Order(StringComparer.Ordinal).ToArray(),
+        if (c.ClientSelectionMode == "fixed") train = FixedCohort(clients, c);
+        else { random.Shuffle(train); train = train.Take(c.ClientsPerRound).Order(StringComparer.Ordinal).ToArray(); }
+        return new(seed, round, train,
             dev[random.Next(dev.Length)], test[random.Next(test.Length)]);
     }
 

@@ -21,7 +21,9 @@ public static class Experiment
     public static ClientInfo[] Inspect(Dataset data, Configuration configuration)
     {
         // Test indexes and signals are deliberately excluded from preparation.
-        var clients = data.Clients.Where(c => c.Split != "test").Select(c => {
+        var cohort = RoundSchedule.FixedCohort(data.Clients, configuration).ToHashSet();
+        var clients = data.Clients.Where(c => c.Split == "dev" || (c.Split == "train"
+            && (configuration.ClientSelectionMode != "fixed" || cohort.Contains(c.Id)))).Select(c => {
             var info = LocalData.Inspect(data, c, configuration);
             Console.WriteLine($"{info.Id}: {info.Split}, {info.Count:N0} selected / {info.SourceCount:N0} source examples");
             return info;
@@ -44,6 +46,7 @@ public static class Experiment
             TrainExamples = clients.Where(x => x.Split == "train").Sum(x => x.Count),
             DevExamples = clients.Where(x => x.Split == "dev").Sum(x => x.Count),
             c.ClientsPerRound,
+            c.ClientSelectionMode, c.ClientSelectionSeed,
             Schedule = schedule,
             ClientTrainingJobs = (long)c.ClientsPerRound * c.GlobalRounds * c.Seeds.Length,
             LocalEpochsAcrossAllClients = (long)c.ClientsPerRound * c.GlobalRounds * c.LocalEpochs * c.Seeds.Length,
@@ -83,8 +86,11 @@ public static class Experiment
             File.WriteAllText(Path.Combine(run, "config.json"), configJson);
             File.WriteAllText(Path.Combine(run, "clients.json"), manifestJson);
             File.Copy(partition, Path.Combine(run, "dataset_config.json"));
+            Json(Path.Combine(run, "cohort.json"), new { c.ClientSelectionMode, c.ClientSelectionSeed,
+                FixedAcrossRoundsAndTrainingSeeds = c.ClientSelectionMode == "fixed",
+                TrainingClients = infos.Where(x => x.Split == "train").Select(x => new { x.Id, x.Patient, x.Count }).ToArray() });
             foreach (string split in new[] { "train", "dev" })
-                Samples.SaveManifest(Path.Combine(run, split + "_samples.csv"), data.Clients.Where(x => x.Split == split)
+                Samples.SaveManifest(Path.Combine(run, split + "_samples.csv"), data.Clients.Where(x => x.Split == split && infos.Any(i => i.Id == x.Id))
                     .SelectMany(client => LocalData.Select(data, client, c, out _)));
             Json(Path.Combine(run, "environment.json"), new { StartedUtc = DateTime.UtcNow,
                 Dotnet = Environment.Version.ToString(), OS = System.Runtime.InteropServices.RuntimeInformation.OSDescription,

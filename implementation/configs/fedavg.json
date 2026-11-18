@@ -1,13 +1,13 @@
 {
-  "Name": "icentia11k-mobilenetv1-fedavg-cpu-3clients",
+  "Name": "icentia11k-mobilenetv1-fedavg-fixed3-10g-25l",
   "Model": "mobilenetv1-1d-100",
   "Seeds": [
     2024,
     2025,
     2026
   ],
-  "GlobalRounds": 15,
-  "LocalEpochs": 100,
+  "GlobalRounds": 10,
+  "LocalEpochs": 25,
   "BatchSize": 128,
   "LearningRate": 0.001,
   "Threads": 4,
@@ -30,5 +30,7 @@
   "TrainSamplesPerClient": null,
   "DevSamplesPerClient": null,
   "SamplingSeed": 2024,
-  "ClientsPerRound": 3
+  "ClientsPerRound": 3,
+  "ClientSelectionMode": "fixed",
+  "ClientSelectionSeed": 2024
 }

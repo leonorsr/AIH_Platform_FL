@@ -21,7 +21,7 @@ public static class Program
                     + "  fine-tune --out run-dir                Search local configurations using shared dev patients\n"
                     + "  evaluate-test --out run-dir            Evaluate locked global/local/fine-tuned models\n"
                     + "  pipeline [--config path] --out dir     Explicitly run/resume FedAvg, dev reports, fine-tuning, then test\n"
-                    + "Defaults: MobileNetV1 1D alpha 1.00; 3 of 16 clients per round; 100 local epochs per round; 15 rounds; 3 seeds.");
+                    + "Defaults: MobileNetV1 1D alpha 1.00; 3 fixed clients drawn from 16; 25 local epochs per round; 10 rounds; 3 seeds.");
                 return 0;
             }
             if (args[0] == "self-test")

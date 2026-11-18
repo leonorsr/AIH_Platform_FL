@@ -17,7 +17,8 @@ public static class FineTuning
 {
     static string Plan(Configuration c) => System.Text.Json.JsonSerializer.Serialize(new { c.Model, c.Seeds, c.GlobalRounds, c.BatchSize,
         c.ClassWeighting, c.RareThreshold, c.FineTuning, c.OptimizedCpuConvolutions,
-        c.TrainSamplesPerClient, c.DevSamplesPerClient, c.SamplingSeed, c.ClientsPerRound }, ExperimentConfig.Json);
+        c.TrainSamplesPerClient, c.DevSamplesPerClient, c.SamplingSeed, c.ClientsPerRound,
+        c.ClientSelectionMode, c.ClientSelectionSeed }, ExperimentConfig.Json);
     // Strict comparison keeps the unchanged model on a tie, then the first
     // candidate/earliest epoch in the recorded deterministic search order.
     public static bool Improves(Evaluation candidate, Evaluation best)

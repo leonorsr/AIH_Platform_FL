@@ -26,7 +26,7 @@ public static class Checks
     {
         PerformanceChecks.Run();
         var c = new Configuration(); c.Validate();
-        Require(c.LocalEpochs == 100 && c.GlobalRounds == 15 && c.Seeds.Length == 3, "Incorrect experiment defaults.");
+        Require(c.LocalEpochs == 25 && c.GlobalRounds == 10 && c.Seeds.Length == 3, "Incorrect experiment defaults.");
         Reject(() => new Configuration { Seeds = [1, 1, 2] }.Validate());
         Reject(() => new Configuration { LearningRate = double.NaN }.Validate());
         Reject(() => new Configuration { Model = "mlp" }.Validate());
@@ -39,6 +39,7 @@ public static class Checks
         foreach (int seed in c.Seeds) foreach (int round in Enumerable.Range(1,c.GlobalRounds))
         {
             var selection = RoundSchedule.Choose(pool,c,seed,round);
+            Require(selection.TrainClients.SequenceEqual(first.TrainClients), "Fixed cohort must be identical across rounds and training seeds.");
             Require(selection.TrainClients.Length == 3 && selection.TrainClients.Distinct().Count() == 3, "Exactly three distinct participants required.");
             Require(selection.TrainClients.All(id => pool.Any(x => x.Id == id && x.Split == "train"))
                 && pool.Any(x => x.Id == selection.DevClient && x.Split == "dev")
