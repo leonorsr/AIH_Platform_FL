@@ -24,6 +24,7 @@ public static class Checks
 
     public static void Run()
     {
+        PerformanceChecks.Run();
         var c = new Configuration(); c.Validate();
         Require(c.LocalEpochs == 100 && c.GlobalRounds == 15 && c.Seeds.Length == 3, "Incorrect experiment defaults.");
         Reject(() => new Configuration { Seeds = [1, 1, 2] }.Validate());
@@ -32,6 +33,17 @@ public static class Checks
         Reject(() => new FineTuningConfig { LearningRates = [double.NaN] }.Validate());
         Reject(() => new FineTuningConfig { TrainableLayers = ["head", "head"] }.Validate());
         Reject(() => FineTuning.RequireCompleted(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), c));
+        var pool = Enumerable.Range(0,20).Select(i => new Aih.Ecg.Client($"client_{i:D2}", $"patient_{i:D2}", i < 16 ? "train" : i < 18 ? "dev" : "test")).ToArray();
+        var first = RoundSchedule.Choose(pool,c,2024,1); var again = RoundSchedule.Choose(pool,c,2024,1);
+        Require(first.TrainClients.SequenceEqual(again.TrainClients) && first.DevClient == again.DevClient && first.TestClient == again.TestClient, "Schedule must be reproducible.");
+        foreach (int seed in c.Seeds) foreach (int round in Enumerable.Range(1,c.GlobalRounds))
+        {
+            var selection = RoundSchedule.Choose(pool,c,seed,round);
+            Require(selection.TrainClients.Length == 3 && selection.TrainClients.Distinct().Count() == 3, "Exactly three distinct participants required.");
+            Require(selection.TrainClients.All(id => pool.Any(x => x.Id == id && x.Split == "train"))
+                && pool.Any(x => x.Id == selection.DevClient && x.Split == "dev")
+                && pool.Any(x => x.Id == selection.TestClient && x.Split == "test"), "Selection crosses patient partitions.");
+        }
         using var global = Tiny(); using var a = Tiny(); using var b = Tiny();
         Fill(global, 0, 0); Fill(a, 2, 2); Fill(b, 8, 7);
         var counts = new Dictionary<string, long> { ["a"] = 1, ["b"] = 3 };

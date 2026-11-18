@@ -11,12 +11,13 @@ public sealed record TuningCandidate(string Id, string Layers, double LearningRa
     Dictionary<string, Evaluation> ByClient, TuningEpoch[] History);
 public sealed record TuningResult(int Seed, string Client, string SourceCheckpoint, string SourceHash,
     string BestConfiguration, string Layers, double LearningRate, int Epochs, Evaluation BaselineDev,
-    Evaluation Dev, Dictionary<string, Evaluation> ByClient, string Checkpoint, TuningCandidate[] Candidates);
+    Evaluation Dev, Dictionary<string, Evaluation> ByClient, string Checkpoint, TuningCandidate[] Candidates, int SourceRound = 0, string DevClient = "", string TestClient = "");
 
 public static class FineTuning
 {
     static string Plan(Configuration c) => System.Text.Json.JsonSerializer.Serialize(new { c.Model, c.Seeds, c.GlobalRounds, c.BatchSize,
-        c.ClassWeighting, c.RareThreshold, c.FineTuning }, ExperimentConfig.Json);
+        c.ClassWeighting, c.RareThreshold, c.FineTuning, c.OptimizedCpuConvolutions,
+        c.TrainSamplesPerClient, c.DevSamplesPerClient, c.SamplingSeed, c.ClientsPerRound }, ExperimentConfig.Json);
     // Strict comparison keeps the unchanged model on a tie, then the first
     // candidate/earliest epoch in the recorded deterministic search order.
     public static bool Improves(Evaluation candidate, Evaluation best)
@@ -36,6 +37,7 @@ public static class FineTuning
     {
         var data = new Dataset(Path.Combine(root, "data"));
         set_num_threads(c.Threads);
+        using var developmentPool = new EvaluationPool(data, "dev", c, Path.Combine(root, "implementation/cache"));
         string plan = Plan(c);
         string planPath = Path.Combine(run, "fine_tuning_plan.json");
         if (File.Exists(planPath) && File.ReadAllText(planPath) != plan)
@@ -50,11 +52,12 @@ public static class FineTuning
         foreach (int seed in c.Seeds)
         {
             int clientIndex = 0;
-            foreach (var client in data.Clients.Where(x => x.Split == "train"))
+            foreach (var sourceInfo in RoundSchedule.LatestLocals(run, c, seed))
             {
                 token.ThrowIfCancellationRequested();
+                var client = data.Clients.Single(x => x.Id == sourceInfo.Client);
                 string destination = Path.Combine(run, $"seed-{seed}", "fine-tuning", client.Id);
-                string source = Path.Combine($"seed-{seed}", $"round-{c.GlobalRounds:D3}", "locals", client.Id + ".bin");
+                string source = sourceInfo.Checkpoint;
                 string sourcePath = Path.Combine(run, source), sourceHash = LocalData.Hash(sourcePath);
                 if (File.Exists(Path.Combine(destination, "result.json")))
                 {
@@ -62,7 +65,7 @@ public static class FineTuning
                     if (existing.SourceHash != sourceHash || !File.Exists(Path.Combine(destination, existing.Checkpoint)))
                         throw new InvalidDataException("Fine-tuning source/checkpoint changed: " + client.Id);
                     Experiment.Json(Path.Combine(run, "model-reports", $"dev-seed-{seed}-local-fine-tuned-{client.Id}.json"),
-                        new ModelEvaluation(seed, "local-fine-tuned", client.Id, c.GlobalRounds, "dev",
+                        new ModelEvaluation(seed, "local-fine-tuned", client.Id, sourceInfo.Round, "dev",
                             Path.Combine($"seed-{seed}", "fine-tuning", client.Id, existing.Checkpoint), existing.Dev, existing.ByClient));
                     clientIndex++; continue;
                 }
@@ -87,7 +90,7 @@ public static class FineTuning
                     // Every candidate restarts from the same final local model,
                     // with the same epoch shuffles and a fresh Adam optimizer.
                     manual_seed(searchSeed);
-                    using var model = Networks.Create(c.Model); model.load(sourcePath); SetLayers(model, layers);
+                    using var model = ModelFactory.Create(c); model.load(sourcePath); SetLayers(model, layers);
                     using var optimizer = optim.Adam(model.parameters().Where(p => p.requires_grad), lr: rate);
                     using var classWeights = weights is null ? null : tensor(weights, dtype: ScalarType.Float32);
                     string id = layers + "-lr-" + rate.ToString("G", CultureInfo.InvariantCulture);
@@ -115,7 +118,7 @@ public static class FineTuning
                                 Experiment.Json(Path.Combine(run, "fine_tuning_status.json"), new { Status = "training", Seed = seed, Client = client.Id,
                                     Candidate = id, Epoch = epoch, c.FineTuning.MaxEpochs, Processed = start + rows.Length, Total = order.Length });
                         }
-                        var (dev, byClient) = Experiment.Evaluate(model, data, "dev", c, Path.Combine(root, "implementation/cache"), token);
+                        var (dev, byClient) = Experiment.Evaluate(model, data, "dev", c, Path.Combine(root, "implementation/cache"), token, developmentPool.For(sourceInfo.DevClient));
                         _ = Trainer.Selection(dev, "sv-pr-auc");
                         history.Add(new(epoch, sumLoss / sumWeight, dev));
                         if (candidateBest is null || Improves(dev, candidateBest))
@@ -134,17 +137,17 @@ public static class FineTuning
                 }
                 // Lock the chosen configuration and weights before any test access.
                 var result = new TuningResult(seed, client.Id, source, sourceHash, bestId, bestLayers, bestRate, bestEpoch,
-                    baseline.Pooled, bestDev, bestByClient, "best.bin", candidates.ToArray());
+                    baseline.Pooled, bestDev, bestByClient, "best.bin", candidates.ToArray(), sourceInfo.Round, sourceInfo.DevClient, sourceInfo.TestClient);
                 Experiment.Json(Path.Combine(staging, "result.json"), result);
                 File.Delete(Path.Combine(staging, "active_candidate.json"));
                 Directory.Move(staging, destination);
                 Experiment.Json(Path.Combine(run, "model-reports", $"dev-seed-{seed}-local-fine-tuned-{client.Id}.json"),
-                    new ModelEvaluation(seed, "local-fine-tuned", client.Id, c.GlobalRounds, "dev",
+                    new ModelEvaluation(seed, "local-fine-tuned", client.Id, sourceInfo.Round, "dev",
                         Path.Combine($"seed-{seed}", "fine-tuning", client.Id, "best.bin"), bestDev, bestByClient));
             }
         }
         Experiment.Json(Path.Combine(run, "fine_tuning_status.json"), new { Status = "completed", CompletedUtc = DateTime.UtcNow,
-            Selection = "Per local model, pooled S/V PR-AUC on the two existing dev patients", TestRead = false });
+            Selection = "Per participating local model, S/V PR-AUC on the single dev patient assigned to its last participation round", TestRead = false });
     }
 
     public static void RequireCompleted(string run, Configuration c)
@@ -152,9 +155,9 @@ public static class FineTuning
         string planPath = Path.Combine(run, "fine_tuning_plan.json");
         if (!File.Exists(planPath) || File.ReadAllText(planPath) != Plan(c))
             throw new InvalidOperationException("Complete the saved fine-tuning search plan before test evaluation.");
-        foreach (int seed in c.Seeds) for (int i = 0; i < 16; i++)
+        foreach (int seed in c.Seeds) foreach (var source in RoundSchedule.LatestLocals(run, c, seed))
         {
-            string dir = Path.Combine(run, $"seed-{seed}", "fine-tuning", $"client_{i:D2}");
+            string dir = Path.Combine(run, $"seed-{seed}", "fine-tuning", source.Client);
             if (!File.Exists(Path.Combine(dir, "result.json")) || !File.Exists(Path.Combine(dir, "best.bin")))
                 throw new InvalidOperationException("Finish and lock all local fine-tuning searches before test evaluation.");
         }

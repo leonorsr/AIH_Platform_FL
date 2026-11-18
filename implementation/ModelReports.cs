@@ -34,23 +34,24 @@ public static class ModelReports
         TorchSharp.torch.set_num_threads(c.Threads);
         var data = new Dataset(Path.Combine(root, "data"));
         string directory = Path.Combine(run, "model-reports"); Directory.CreateDirectory(directory);
+        using var pool = new EvaluationPool(data, split, c, Path.Combine(root, "implementation/cache"));
         foreach (int seed in c.Seeds)
         {
-            string seedDir = Path.Combine(run, $"seed-{seed}");
-            var selected = Read<SeedResult>(Path.Combine(seedDir, "selected.json"));
-            var specifications = new List<(string Kind, string? Client, int Round, string Checkpoint)> {
-                ("global-final", null, c.GlobalRounds, Path.Combine($"seed-{seed}", $"round-{c.GlobalRounds:D3}", "global.bin")),
-                ("global-selected", null, selected.BestRound, selected.Checkpoint)
+            var history = RoundSchedule.History(run, c, seed);
+            var selected = Read<SeedResult>(Path.Combine(run, $"seed-{seed}", "selected.json"));
+            string Patient(int round) => split == "dev" ? history[round-1].Selection!.DevClient : history[round-1].Selection!.TestClient;
+            var specifications = new List<(string Kind, string? Client, int Round, string Checkpoint, string Patient)> {
+                ("global-final", null, c.GlobalRounds, Path.Combine($"seed-{seed}", $"round-{c.GlobalRounds:D3}", "global.bin"), Patient(c.GlobalRounds)),
+                ("global-selected", null, selected.BestRound, selected.Checkpoint, Patient(selected.BestRound))
             };
-            foreach (var client in data.Clients.Where(x => x.Split == "train"))
+            foreach (var source in RoundSchedule.LatestLocals(run, c, seed))
             {
-                specifications.Add(("local-final", client.Id, c.GlobalRounds,
-                    Path.Combine($"seed-{seed}", $"round-{c.GlobalRounds:D3}", "locals", client.Id + ".bin")));
+                specifications.Add(("local-final", source.Client, source.Round, source.Checkpoint, Patient(source.Round)));
                 if (split == "test")
                 {
-                    var tuning = Read<TuningResult>(Path.Combine(seedDir, "fine-tuning", client.Id, "result.json"));
-                    specifications.Add(("local-fine-tuned", client.Id, c.GlobalRounds,
-                        Path.Combine($"seed-{seed}", "fine-tuning", client.Id, tuning.Checkpoint)));
+                    var tuning = Read<TuningResult>(Path.Combine(run, $"seed-{seed}", "fine-tuning", source.Client, "result.json"));
+                    specifications.Add(("local-fine-tuned", source.Client, source.Round,
+                        Path.Combine($"seed-{seed}", "fine-tuning", source.Client, tuning.Checkpoint), source.TestClient));
                 }
             }
             foreach (var spec in specifications)
@@ -58,16 +59,43 @@ public static class ModelReports
                 token.ThrowIfCancellationRequested();
                 string path = Path.Combine(directory, $"{split}-seed-{seed}-{spec.Kind}-{spec.Client ?? "server"}.json");
                 if (File.Exists(path)) continue;
-                if (split == "dev" && spec.Kind.StartsWith("global-", StringComparison.Ordinal))
+                if (split == "dev")
                 {
-                    var round = Read<RoundResult>(Path.Combine(seedDir, $"round-{spec.Round:D3}", "metrics.json"));
-                    Experiment.Json(path, new ModelEvaluation(seed, spec.Kind, spec.Client, spec.Round, split, spec.Checkpoint, round.Dev, round.DevByClient));
+                    var round = history[spec.Round-1];
+                    var evaluation = spec.Client is null ? round.Dev : round.LocalDev![spec.Client];
+                    Experiment.Json(path, new ModelEvaluation(seed, spec.Kind, spec.Client, spec.Round, split, spec.Checkpoint,
+                        evaluation, new Dictionary<string, Evaluation> { [spec.Patient] = evaluation }));
                     continue;
                 }
-                using var model = Networks.Create(c.Model); model.load(Path.Combine(run, spec.Checkpoint));
-                var (pooled, byClient) = Experiment.Evaluate(model, data, split, c, Path.Combine(root, "implementation/cache"), token);
+                using var model = ModelFactory.Create(c); model.load(Path.Combine(run, spec.Checkpoint));
+                var (pooled, byClient) = Experiment.Evaluate(model, data, split, c, Path.Combine(root, "implementation/cache"), token, pool.For(spec.Patient));
                 Experiment.Json(path, new ModelEvaluation(seed, spec.Kind, spec.Client, spec.Round, split, spec.Checkpoint, pooled, byClient));
-                Console.WriteLine($"Report {split}, seed {seed}, {spec.Kind}, {spec.Client}: S/V PR-AUC {pooled.RareSv.PrAuc:F6}");
+            }
+        }
+    }
+
+    public static void WriteRoundTests(string root, string run, Configuration c, CancellationToken token)
+    {
+        // This method is called only after every fine-tuning configuration is locked.
+        var data = new Dataset(Path.Combine(root, "data"));
+        using var pool = new EvaluationPool(data, "test", c, Path.Combine(root, "implementation/cache"));
+        foreach (int seed in c.Seeds) foreach (var round in RoundSchedule.History(run, c, seed))
+        {
+            string dir = Path.Combine(run, $"seed-{seed}", "round-tests"); Directory.CreateDirectory(dir);
+            var specs = new List<(string Kind,string? Client,string Checkpoint)> {
+                ("global-round", null, Path.Combine($"seed-{seed}", $"round-{round.Round:D3}", "global.bin"))
+            };
+            specs.AddRange(round.Clients.Select(client => ("local-round", (string?)client.Client,
+                Path.Combine($"seed-{seed}", $"round-{round.Round:D3}", client.Checkpoint!))));
+            foreach (var spec in specs)
+            {
+                token.ThrowIfCancellationRequested();
+                string path = Path.Combine(dir, $"round-{round.Round:D3}-{spec.Client ?? "server"}.json");
+                if (File.Exists(path)) continue;
+                using var model = ModelFactory.Create(c); model.load(Path.Combine(run, spec.Checkpoint));
+                var (pooled, byClient) = Experiment.Evaluate(model, data, "test", c, Path.Combine(root, "implementation/cache"), token,
+                    pool.For(round.Selection!.TestClient));
+                Experiment.Json(path, new ModelEvaluation(seed, spec.Kind, spec.Client, round.Round, "test", spec.Checkpoint, pooled, byClient));
             }
         }
     }

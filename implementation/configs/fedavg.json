@@ -1,5 +1,5 @@
 {
-  "Name": "icentia11k-mobilenetv1-fedavg",
+  "Name": "icentia11k-mobilenetv1-fedavg-cpu-3clients",
   "Model": "mobilenetv1-1d-100",
   "Seeds": [
     2024,
@@ -25,5 +25,10 @@
       "all"
     ],
     "MaxEpochs": 20
-  }
+  },
+  "OptimizedCpuConvolutions": true,
+  "TrainSamplesPerClient": null,
+  "DevSamplesPerClient": null,
+  "SamplingSeed": 2024,
+  "ClientsPerRound": 3
 }

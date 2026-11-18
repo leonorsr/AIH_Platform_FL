@@ -6,7 +6,7 @@ ECG analysis and data preparation in C# / .NET 8. All project documentation, not
 - `src/Aih.Ecg/`: C# application for analysis, preparation, and validation.
 - `architecture/`: proposed federated-learning architecture using FedAvg.
 - `model tests/`: neural-network smoke tests with PR-AUC, ROC-AUC, miss rate, and FAR.
-- `implementation/`: executable C# FedAvg simulation using MobileNetV1 1D alpha 1.00, 16 training clients, 100 local epochs per round, 15 rounds, and three seeds. See its [execution guide](implementation/README.md).
+- `implementation/`: executable C# FedAvg simulation using MobileNetV1 1D alpha 1.00, a pool of 16 training clients with three randomly selected per round, 100 local epochs per round, 15 rounds, and three seeds. See its [execution guide](implementation/README.md).
 - `eda and data prep/`: C# analysis and preparation notebooks (.NET / Polyglot Notebooks kernel).
 
 ```sh
@@ -35,14 +35,14 @@ dotnet build implementation/Implementation.csproj -c Release
 # Very short functional check on synthetic ECG; no real patient data.
 dotnet run --project implementation -c Release --no-build -- integration-test
 
-# Full experiment: FedAvg → local fine-tuning → held-out evaluation.
+# Full-data experiment: FedAvg → local fine-tuning → held-out evaluation.
 dotnet run --project implementation -c Release --no-build -- pipeline \
   --config implementation/configs/fedavg.json \
-  --out artifacts/fl/mobilenetv1-fedavg-100local-15global
+  --out artifacts/fl/mobilenetv1-fedavg-cpu-3clients
 
 # Resume all stages of that experiment.
 dotnet run --project implementation -c Release --no-build -- pipeline \
-  --out artifacts/fl/mobilenetv1-fedavg-100local-15global
+  --out artifacts/fl/mobilenetv1-fedavg-cpu-3clients
 ```
 
-The full configuration uses MobileNetV1 1D alpha 1.00, 16 training clients, 100 local epochs per round, 15 global rounds, and three seeds. The integration test uses a separate tiny synthetic fixture. See the [execution guide](implementation/README.md) for planning, stage-specific commands, output paths, and the C# results notebook.
+The full-data CPU configuration uses MobileNetV1 1D alpha 1.00, a pool of 16 training clients with three randomly selected per round, 100 local epochs per round, 15 global rounds, and three seeds, using all original beats of each selected training client, one random dev patient per round, and one preselected test patient per round. Test inference is deferred until training and tuning are locked; no beat-sampling caps apply. Optimized, numerically equivalent convolution operations accelerate CPU training. The integration test uses a separate tiny synthetic fixture. See the [execution guide](implementation/README.md) for planning, stage-specific commands, output paths, and the C# results notebook.

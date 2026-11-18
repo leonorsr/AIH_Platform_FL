@@ -14,13 +14,14 @@ public static class Program
                 Console.WriteLine("C# ECG FedAvg simulation\n"
                     + "  plan [--config path]                  Inspect indexes; no signals, cache building, or training\n"
                     + "  self-test                             Synthetic aggregation checks; no training\n"
+                    + "  benchmark [--config path] [--out dir]  Short synthetic CPU throughput comparison\n"
                     + "  integration-test [--out empty-dir]     Very short complete pipeline on synthetic ECG only\n"
                     + "  run [--config path] --out empty-dir    Explicitly start training\n"
                     + "  resume --out run-dir                  Resume after the last complete round\n"
                     + "  fine-tune --out run-dir                Search local configurations using shared dev patients\n"
                     + "  evaluate-test --out run-dir            Evaluate locked global/local/fine-tuned models\n"
                     + "  pipeline [--config path] --out dir     Explicitly run/resume FedAvg, dev reports, fine-tuning, then test\n"
-                    + "Defaults: MobileNetV1 1D alpha 1.00; 16 clients; 100 local epochs per round; 15 rounds; 3 seeds.");
+                    + "Defaults: MobileNetV1 1D alpha 1.00; 3 of 16 clients per round; 100 local epochs per round; 15 rounds; 3 seeds.");
                 return 0;
             }
             if (args[0] == "self-test")
@@ -28,7 +29,7 @@ public static class Program
                 if (args.Length != 1) throw new ArgumentException("self-test accepts no options.");
                 NativeBackend.Initialize(); Checks.Run(); return 0;
             }
-            if (args[0] is not ("plan" or "run" or "resume" or "fine-tune" or "evaluate-test" or "pipeline" or "integration-test")) throw new ArgumentException("Unknown command.");
+            if (args[0] is not ("plan" or "benchmark" or "run" or "resume" or "fine-tune" or "evaluate-test" or "pipeline" or "integration-test")) throw new ArgumentException("Unknown command.");
             var options = new Dictionary<string, string>();
             for (int i = 1; i < args.Length; i++)
             {
@@ -39,6 +40,13 @@ public static class Program
             string root = Dataset.FindRoot();
             string config = options.GetValueOrDefault("--config", Path.Combine(root, "implementation/configs/fedavg.json"));
             if (args[0] == "plan") { Experiment.Plan(root, Configuration.Load(config)); return 0; }
+            if (args[0] == "benchmark")
+            {
+                NativeBackend.Initialize();
+                PerformanceBenchmark.Run(Configuration.Load(config), options.GetValueOrDefault("--out",
+                    Path.Combine(root, "artifacts/fl/benchmarks", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"))));
+                return 0;
+            }
             string output = options.GetValueOrDefault("--out") ?? (args[0] == "integration-test"
                 ? Path.Combine(root, "artifacts/fl/integration-smoke", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N")[..6])
                 : throw new ArgumentException("Provide --out explicitly."));

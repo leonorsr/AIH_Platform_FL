@@ -4,7 +4,8 @@ using Aih.ModelTests;
 
 namespace Aih.Implementation;
 
-public sealed record ClientInfo(string Id, string Patient, string Split, long Count, long[] Supports, string IndexHash);
+public sealed record ClientInfo(string Id, string Patient, string Split, long Count, long[] Supports, string IndexHash,
+    long SourceCount = 0);
 
 public sealed class LocalData : IDisposable
 {
@@ -15,7 +16,7 @@ public sealed class LocalData : IDisposable
     public LocalData(Dataset data, Client client, Configuration c, string cacheRoot)
     {
         this.data = data;
-        Rows = ReadRows(data, client).OrderBy(r => r.Path, StringComparer.Ordinal).ToArray();
+        Rows = Select(data, client, c, out _);
         if (Rows.Length == 0) throw new InvalidDataException("Empty client: " + client.Id);
         if (c.UseDiskCache) cache = new PackedSignals(data, Rows, [], Path.Combine(cacheRoot, client.Id));
     }
@@ -42,11 +43,27 @@ public sealed class LocalData : IDisposable
         return Convert.ToHexString(SHA256.HashData(input));
     }
 
-    public static ClientInfo Inspect(Dataset data, Client client)
+    public static Example[] Select(Dataset data, Client client, Configuration c, out long sourceCount)
+    {
+        int? limit = client.Split == "train" ? c.TrainSamplesPerClient : client.Split == "dev" ? c.DevSamplesPerClient : null;
+        long count = 0;
+        IEnumerable<Example> Counted()
+        {
+            foreach (var row in ReadRows(data, client)) { count++; yield return row; }
+        }
+        int seed = BitConverter.ToInt32(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(c.SamplingSeed + ":" + client.Id)), 0) & int.MaxValue;
+        var selected = Samples.SelectRows(Counted(), limit, seed,
+            limit.HasValue ? "stratified-per-client-class" : "uniform-per-client");
+        sourceCount = count;
+        return selected.OrderBy(r => r.Path, StringComparer.Ordinal).ToArray();
+    }
+
+    public static ClientInfo Inspect(Dataset data, Client client, Configuration c)
     {
         var supports = new long[4];
-        foreach (var row in ReadRows(data, client)) supports[row.Label]++;
+        var rows = Select(data, client, c, out long sourceCount);
+        foreach (var row in rows) supports[row.Label]++;
         if (supports.Sum() == 0) throw new InvalidDataException("Empty client: " + client.Id);
-        return new(client.Id, client.Patient, client.Split, supports.Sum(), supports, Hash(data.Index(client)));
+        return new(client.Id, client.Patient, client.Split, supports.Sum(), supports, Hash(data.Index(client)), sourceCount);
     }
 }

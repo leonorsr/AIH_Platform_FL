@@ -5,17 +5,22 @@ namespace Aih.Implementation;
 
 public sealed class Configuration
 {
-    public string Name { get; set; } = "icentia11k-mobilenetv1-fedavg";
+    public string Name { get; set; } = "icentia11k-mobilenetv1-fedavg-cpu-3clients";
     public string Model { get; set; } = "mobilenetv1-1d-100";
     public int[] Seeds { get; set; } = [2024, 2025, 2026];
     public int GlobalRounds { get; set; } = 15;
     public int LocalEpochs { get; set; } = 100;
+    public int ClientsPerRound { get; set; } = 3;
     public int BatchSize { get; set; } = 128;
     public double LearningRate { get; set; } = .001;
     public int Threads { get; set; } = 4;
     public string ClassWeighting { get; set; } = "inverse-frequency";
     public double RareThreshold { get; set; } = .5;
     public bool UseDiskCache { get; set; } = true;
+    public bool OptimizedCpuConvolutions { get; set; } = true;
+    public int? TrainSamplesPerClient { get; set; } = null;
+    public int? DevSamplesPerClient { get; set; } = null;
+    public int SamplingSeed { get; set; } = 2024;
     public FineTuningConfig FineTuning { get; set; } = new();
 
     public static Configuration Load(string path)
@@ -33,6 +38,8 @@ public sealed class Configuration
         if (GlobalRounds <= 0 || LocalEpochs <= 0 || BatchSize < 2 || Threads <= 0 || !double.IsFinite(LearningRate) || LearningRate <= 0
             || !double.IsFinite(RareThreshold) || RareThreshold < 0 || RareThreshold > 1) throw new ArgumentException("Invalid training configuration.");
         if (ClassWeighting is not ("none" or "inverse-frequency")) throw new ArgumentException("Invalid class weighting.");
+        if (ClientsPerRound < 1 || ClientsPerRound > 16) throw new ArgumentException("ClientsPerRound must be between 1 and 16.");
+        if (TrainSamplesPerClient is < 4 || DevSamplesPerClient is < 4 || SamplingSeed < 0) throw new ArgumentException("Sample limits must be null or at least four.");
         FineTuning.Validate();
     }
 }
